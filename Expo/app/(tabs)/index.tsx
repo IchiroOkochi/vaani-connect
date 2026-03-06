@@ -320,8 +320,8 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 132,
     color: '#f5f5f5',
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 28,
+    lineHeight: 34,
     textAlign: 'center',
     textAlignVertical: 'center',
   },
