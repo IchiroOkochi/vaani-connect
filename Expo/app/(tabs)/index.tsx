@@ -156,14 +156,9 @@ export default function HomeScreen() {
     await Linking.openURL(audioUrl);
   }
 
-  function moveOutputToInput() {
-    if (!outputText.trim()) {
-      Alert.alert('No output to move', 'Translate first, then use the up arrow to move text back to input.');
-      return;
-    }
-
+  function switchLanguages() {
     setInputText(outputText);
-    setOutputText('');
+    setOutputText(inputText);
     setLatestAudioUrl(null);
     setSourceLanguage(targetLanguage);
     setTargetLanguage(sourceLanguage);
@@ -178,7 +173,11 @@ export default function HomeScreen() {
           style={[styles.circleButton, isRecording && styles.circleButtonStop]}
           onPress={toggleRecording}
           disabled={isTranslatingSpeech || isTranslatingText}>
-          {isTranslatingSpeech ? <ActivityIndicator color="#0b1220" /> : null}
+          {isTranslatingSpeech ? (
+            <ActivityIndicator color="#0b1220" />
+          ) : (
+            <ThemedText style={styles.recordIcon}>{isRecording ? '⏹' : '⏺'}</ThemedText>
+          )}
         </Pressable>
         <ThemedText style={styles.buttonLabel}>{isRecording ? 'Stop Recording' : 'Record Button'}</ThemedText>
       </View>
@@ -198,16 +197,21 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.arrowRow}>
-        <Pressable style={styles.arrowButton} onPress={moveOutputToInput}>
-          <ThemedText style={styles.arrowText}>↑</ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.arrowButton, (!canTranslateText || isTranslatingText) && styles.disabledButton]}
-          onPress={translateFromText}
-          disabled={!canTranslateText || isTranslatingText}>
-          {isTranslatingText ? <ActivityIndicator color="#f5f5f5" /> : <ThemedText style={styles.arrowText}>↓</ThemedText>}
+        <Pressable style={styles.arrowButton} onPress={switchLanguages}>
+          <ThemedText style={styles.arrowText}>⇅</ThemedText>
         </Pressable>
       </View>
+
+      <Pressable
+        style={[styles.translateButton, (!canTranslateText || isTranslatingText) && styles.disabledButton]}
+        onPress={translateFromText}
+        disabled={!canTranslateText || isTranslatingText}>
+        {isTranslatingText ? (
+          <ActivityIndicator color="#071322" />
+        ) : (
+          <ThemedText style={styles.translateButtonText}>Translate</ThemedText>
+        )}
+      </Pressable>
 
       <View style={styles.textBox}>
         <TextInput
@@ -295,6 +299,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   circleButtonStop: { backgroundColor: '#f97316' },
+  recordIcon: {
+    color: '#0b1220',
+    fontSize: 20,
+    lineHeight: 20,
+    fontWeight: '700',
+  },
   buttonLabel: {
     color: '#f5f5f5',
     fontSize: 16,
@@ -334,9 +344,22 @@ const styles = StyleSheet.create({
   },
   arrowText: {
     color: '#f5f5f5',
-    fontSize: 40,
-    lineHeight: 40,
+    fontSize: 28,
+    lineHeight: 30,
     fontWeight: '500',
+  },
+  translateButton: {
+    backgroundColor: '#66b7f2',
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 20,
+  },
+  translateButtonText: {
+    color: '#071322',
+    fontSize: 16,
+    fontWeight: '700',
   },
   disabledButton: {
     opacity: 0.4,
