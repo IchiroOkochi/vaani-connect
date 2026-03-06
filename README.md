@@ -51,7 +51,12 @@ You can also use:
 export HUGGINGFACE_HUB_TOKEN="your_token_here"
 ```
 
-### Run backend demo
+### Run backend API
+```bash
+uvicorn app.server:app --host 0.0.0.0 --port 8000
+```
+
+You can still run the demo script with:
 ```bash
 python -m app.main
 ```
@@ -76,3 +81,6 @@ Then launch on Android/iOS/Web from the Expo CLI output.
 - The backend code was converted from Colab-style cells to standard Python modules.
 - Colab-only imports like `google.colab.userdata` are replaced by environment-variable based token loading.
 - The folder name is currently `bakcend/` (as in the existing repo).
+
+
+Frontend app expects these backend routes: `/health`, `/translate/text`, `/translate/speech`, and `/audio/{filename}`.
