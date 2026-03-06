@@ -11,7 +11,9 @@ Converted from Google Colab notebook cells into regular Python modules:
 
 ## Quick start
 ```bash
-python -m venv .venv
+sudo apt update
+sudo apt install -y python3.11 python3.11-venv python3.11-dev
+python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip==24.0
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu118
