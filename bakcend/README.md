@@ -20,3 +20,15 @@ python -m app.setup
 export HF_TOKEN="your_huggingface_read_token"
 python -m app.main
 ```
+
+
+## Run API server
+```bash
+uvicorn app.server:app --host 0.0.0.0 --port 8000
+```
+
+Endpoints:
+- `GET /health`
+- `POST /translate/text`
+- `POST /translate/speech` (multipart form with `audio`, `source_language`, `target_language`)
+- `GET /audio/{filename}`
