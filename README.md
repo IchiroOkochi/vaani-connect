@@ -14,7 +14,7 @@ This repository has two main folders:
 ### Create and activate virtual environment
 ```bash
 cd bakcend
-python -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 ```
 
@@ -24,9 +24,13 @@ Upgrade pip first (same version used in your Colab snippet):
 python -m pip install --upgrade pip==24.0
 ```
 
-Install PyTorch for CUDA 11.8 (GPU build):
+Install PyTorch (CPU — safe default):
 ```bash
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+Install IndicTransToolkit
+```bash
+pip install git+https://github.com/VarunGumma/IndicTransToolkit.git
 ```
 
 Install remaining backend dependencies:
