@@ -1,36 +1,132 @@
-# Backend (Python)
+# Backend Setup Guide (Beginner Friendly)
 
-Converted from Google Colab notebook cells into regular Python modules:
+This backend provides:
 
-- `app/config.py` → Hugging Face token loading/login via env vars
-- `app/translation.py` → IndicTrans2 translation service
-- `app/asr.py` → Whisper + IndicWav2Vec transcription service
+- Speech recognition (ASR)
+- Translation
+- Text-to-speech (TTS)
+- API endpoints used by the Expo frontend
+
+If you are on Windows, use **WSL** for best compatibility.
+
+---
+
+## Backend files (quick map)
+
+- `app/config.py` → loads Hugging Face token from environment
+- `app/translation.py` → IndicTrans2 translation
+- `app/asr.py` → Whisper + IndicWav2Vec transcription
 - `app/tts.py` → gTTS audio generation
-- `app/setup.py` → NLTK punkt download helper
-- `app/main.py` → simple startup/demo entrypoint
+- `app/setup.py` → downloads required NLTK data
+- `app/server.py` → FastAPI server
+- `app/main.py` → startup/demo script
 
-## Quick start
+---
+
+## Option A (Recommended): Windows + WSL
+
+### 1) Install WSL (one-time)
+
+In PowerShell (Admin):
+
+```powershell
+wsl --install
+```
+
+Restart if prompted.
+
+### 2) Install Python 3.11 in WSL Ubuntu
+
 ```bash
 sudo apt update
 sudo apt install -y python3.11 python3.11-venv python3.11-dev
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip==24.0
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu118
-pip install -r requirements.txt
-python -m app.setup
-export HF_TOKEN="your_huggingface_read_token"
-python -m app.main
 ```
 
+### 3) Create virtual environment with Python 3.11
 
-## Run API server
+```bash
+cd /workspace/vaani-connect/bakcend
+python3.11 -m venv .venv
+source .venv/bin/activate
+python --version
+```
+
+Expected: `Python 3.11.x`
+
+### 4) Install dependencies
+
+```bash
+python -m pip install --upgrade pip==24.0
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install git+https://github.com/VarunGumma/IndicTransToolkit.git
+pip install -r requirements.txt
+python -m app.setup
+```
+
+### 5) Add Hugging Face token
+
+Create a read token: <https://huggingface.co/settings/tokens>
+
+```bash
+export HF_TOKEN="your_huggingface_read_token"
+```
+
+(You can also use `HUGGINGFACE_HUB_TOKEN`.)
+
+### 6) Run backend API server
+
 ```bash
 uvicorn app.server:app --host 0.0.0.0 --port 8000
 ```
 
-Endpoints:
+---
+
+## Option B: No WSL
+
+### Linux/macOS
+
+Use the exact same commands as Option A in your normal terminal.
+
+### Windows PowerShell (no WSL)
+
+1. Install Python 3.11 from: <https://www.python.org/downloads/release/python-3110/>
+2. Open PowerShell in `bakcend` folder.
+3. Run:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python --version
+python -m pip install --upgrade pip==24.0
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install git+https://github.com/VarunGumma/IndicTransToolkit.git
+pip install -r requirements.txt
+python -m app.setup
+$env:HF_TOKEN="your_huggingface_read_token"
+uvicorn app.server:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+## API endpoints
+
 - `GET /health`
 - `POST /translate/text`
-- `POST /translate/speech` (multipart form with `audio`, `source_language`, `target_language`)
+- `POST /translate/speech` (multipart with `audio`, `source_language`, `target_language`)
 - `GET /audio/{filename}`
+
+---
+
+## Quick checks
+
+When server is running, test health:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Optional demo run:
+
+```bash
+python -m app.main
+```
