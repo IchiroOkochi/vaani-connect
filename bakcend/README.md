@@ -108,9 +108,27 @@ uvicorn app.server:app --host 0.0.0.0 --port 8000
 
 ---
 
+## Runtime hardening env vars
+
+- `VAANI_API_KEY`  
+  If set, `POST /translate/text` and `POST /translate/speech` require header `X-API-Key: <value>`.
+- `VAANI_ALLOWED_ORIGINS`  
+  Comma-separated CORS origins (default is local dev origins only).
+- `VAANI_RATE_LIMIT_REQUESTS`  
+  Max requests per client IP in the time window (default `30`).
+- `VAANI_RATE_LIMIT_WINDOW_SECONDS`  
+  Rate-limit window in seconds (default `60`).
+- `VAANI_MAX_UPLOAD_BYTES`  
+  Max upload size for speech translation (default `10485760`, i.e. 10 MB).
+- `VAANI_AUDIO_TTL_SECONDS`  
+  Auto-cleanup TTL for generated audio files (default `3600`).
+
+---
+
 ## API endpoints
 
 - `GET /health`
+- `GET /languages`
 - `POST /translate/text`
 - `POST /translate/speech` (multipart with `audio`, `source_language`, `target_language`)
 - `GET /audio/{filename}`
@@ -129,4 +147,11 @@ Optional demo run:
 
 ```bash
 python -m app.main
+```
+
+Run backend tests:
+
+```bash
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
 ```
