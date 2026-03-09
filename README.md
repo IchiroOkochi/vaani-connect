@@ -22,6 +22,7 @@ The frontend calls backend routes like:
 - `/translate/text`
 - `/translate/speech`
 - `/audio/{filename}`
+- `/metrics/recent` (debug view of recent backend translation metrics)
 
 ---
 
@@ -157,6 +158,8 @@ curl http://localhost:8000/health
 ## Helpful notes
 
 - Folder name is intentionally `bakcend/` in this repository.
+- Backend observability details (VAANI_METRICS logs + `/metrics/recent`) are documented in `bakcend/README.md`.
+- Professional benchmark harness docs are in `bakcend/benchmark/README.md`.
 - You can also run backend demo directly:
 
 ```bash

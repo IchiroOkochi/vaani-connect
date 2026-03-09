@@ -1,0 +1,13 @@
+case_id,source_language,target_language,text,include_speech
+txt-001,English,Hindi,"Good morning everyone. Thank you for joining this live demonstration.",false
+txt-002,Hindi,English,"आज हम एक रीयल-टाइम ट्रांसलेशन सिस्टम का प्रदर्शन करेंगे।",false
+txt-003,English,Tamil,"Please submit your documents before the end of the day.",false
+txt-004,Tamil,English,"இது குறைந்த தாமத மொழிபெயர்ப்பு அமைப்புக்கான சோதனை.",false
+txt-005,English,Bengali,"The emergency response team reached the location in five minutes.",false
+txt-006,Bengali,English,"আজকের বৈঠকে প্রকল্পের কর্মক্ষমতা এবং নির্ভরযোগ্যতা নিয়ে আলোচনা হবে।",false
+txt-007,English,Telugu,"Our platform supports secure API access with rate limiting.",false
+txt-008,Telugu,English,"ఈ వ్యవస్థలో మోడల్ రూటింగ్ మరియు పనితీరు కొలతలు స్వయంచాలకంగా సేకరించబడతాయి.",false
+txt-009,English,Urdu,"Please wait while we process your translation request.",false
+txt-010,Marathi,English,"या डेमोमध्ये आम्ही विलंब, अचूकता आणि स्केलेबिलिटी मोजतो.",false
+txt-011,English,Hindi,"Your booking has been confirmed for tomorrow at 10 AM.",true
+txt-012,English,Telugu,"This sentence includes text-to-speech so we can measure audio generation latency.",true

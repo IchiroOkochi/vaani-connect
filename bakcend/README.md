@@ -122,6 +122,8 @@ uvicorn app.server:app --host 0.0.0.0 --port 8000
   Max upload size for speech translation (default `10485760`, i.e. 10 MB).
 - `VAANI_AUDIO_TTL_SECONDS`  
   Auto-cleanup TTL for generated audio files (default `3600`).
+- `VAANI_RECENT_METRICS_LIMIT`  
+  Max number of in-memory metric events kept for `/metrics/recent` (default `100`).
 
 ---
 
@@ -129,9 +131,97 @@ uvicorn app.server:app --host 0.0.0.0 --port 8000
 
 - `GET /health`
 - `GET /languages`
+- `GET /metrics/recent` (debug endpoint for recent backend metrics)
 - `POST /translate/text`
 - `POST /translate/speech` (multipart with `audio`, `source_language`, `target_language`)
 - `GET /audio/{filename}`
+
+---
+
+## Observability and metrics
+
+The backend emits structured metrics for translation requests.
+
+### 1) Terminal metrics logs
+
+When requests hit translation endpoints, backend logs include lines that start with:
+
+```text
+VAANI_METRICS {...}
+```
+
+To ensure these appear, run uvicorn with info-level logs:
+
+```bash
+uvicorn app.server:app --host 0.0.0.0 --port 8000 --log-level info
+```
+
+### 2) Read metrics via API
+
+Use the debug endpoint to inspect recent metric events:
+
+```bash
+curl "http://localhost:8000/metrics/recent?limit=20"
+```
+
+If `VAANI_API_KEY` is enabled, include header:
+
+```bash
+curl -H "X-API-Key: your_key_here" "http://localhost:8000/metrics/recent?limit=20"
+```
+
+### What metrics include
+
+- Request latency (`total_latency_ms`)
+- Translation route/model IDs and per-stage timings
+- ASR model path/latency for speech translation
+- TTS latency and audio persistence timing
+- Input/output size stats (chars/bytes)
+- `request_id` is included in translation responses and in metrics events for correlation.
+
+---
+
+## Benchmark harness (CSV + report)
+
+Use the built-in benchmark harness for presentation-ready metrics.
+
+Files:
+
+- `benchmark/run_api_benchmark.py`
+- `benchmark/datasets/presentation_text_cases.csv`
+- `benchmark/README.md`
+
+Run from `bakcend/`:
+
+```bash
+python benchmark/run_api_benchmark.py \
+  --base-url http://localhost:8000 \
+  --dataset benchmark/datasets/presentation_text_cases.csv \
+  --runs-per-case 5 \
+  --concurrency 2 \
+  --tag professional-demo
+```
+
+If API key auth is enabled:
+
+```bash
+python benchmark/run_api_benchmark.py --api-key your_key_here
+```
+
+Benchmark output is written to:
+
+`benchmark/results/<timestamp>-<tag>/`
+
+Key artifacts:
+
+- `raw_requests.csv`
+- `pair_summary.csv`
+- `route_summary.csv`
+- `error_summary.csv`
+- `summary.json`
+- `summary.md`
+
+For larger runs, increase `VAANI_RECENT_METRICS_LIMIT` so all request IDs can join with backend metrics.
 
 ---
 
