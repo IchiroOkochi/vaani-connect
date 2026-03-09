@@ -20,6 +20,20 @@ export type TranslationResponse = {
   audio_url?: string | null;
 };
 
+export async function fetchSupportedLanguages(): Promise<SupportedLanguage[]> {
+  const res = await fetch(`${API_BASE_URL}/languages`);
+  if (!res.ok) {
+    throw new Error(`Language fetch failed (${res.status})`);
+  }
+
+  const payload: unknown = await res.json();
+  if (!Array.isArray(payload)) {
+    throw new Error('Language fetch returned invalid payload');
+  }
+
+  return payload.filter((item): item is SupportedLanguage => typeof item === 'string');
+}
+
 export async function translateText(params: {
   text: string;
   sourceLanguage: SupportedLanguage;

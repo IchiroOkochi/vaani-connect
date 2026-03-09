@@ -1,12 +1,27 @@
 export const SUPPORTED_LANGUAGES = [
   'English',
+  'Assamese',
+  'Bodo',
+  'Dogri',
+  'Gujarati',
   'Hindi',
-  'Telugu',
-  'Tamil',
   'Kannada',
+  'Kashmiri',
+  'Konkani',
+  'Maithili',
   'Malayalam',
   'Bengali',
+  'Manipuri',
   'Marathi',
+  'Nepali',
+  'Odia',
+  'Punjabi',
+  'Sanskrit',
+  'Santali',
+  'Sindhi',
+  'Tamil',
+  'Telugu',
+  'Urdu',
 ] as const;
 
-export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+export type SupportedLanguage = string;

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import { ThemedText } from '@/components/themed-text';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/constants/languages';
 import {
   API_BASE_URL,
+  fetchSupportedLanguages,
   toAbsoluteAudioUrl,
   translateSpeech,
   translateText,
@@ -22,6 +23,7 @@ import {
 } from '@/services/api';
 
 export default function HomeScreen() {
+  const [availableLanguages, setAvailableLanguages] = useState<SupportedLanguage[]>([...SUPPORTED_LANGUAGES]);
   const [sourceLanguage, setSourceLanguage] = useState<SupportedLanguage>('English');
   const [targetLanguage, setTargetLanguage] = useState<SupportedLanguage>('Hindi');
   const [inputText, setInputText] = useState('');
@@ -33,6 +35,28 @@ export default function HomeScreen() {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLanguages() {
+      try {
+        const fetched = await fetchSupportedLanguages();
+        if (!isMounted || fetched.length === 0) return;
+
+        setAvailableLanguages(fetched);
+        setSourceLanguage((current) => (fetched.includes(current) ? current : fetched[0]));
+        setTargetLanguage((current) => (fetched.includes(current) ? current : fetched[1] ?? fetched[0]));
+      } catch {
+        // Keep fallback language list when backend language endpoint is unavailable.
+      }
+    }
+
+    loadLanguages();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const canTranslateText = useMemo(() => inputText.trim().length > 0 && !isTranslatingSpeech, [inputText, isTranslatingSpeech]);
 
@@ -182,8 +206,18 @@ export default function HomeScreen() {
         <ThemedText style={styles.buttonLabel}>{isRecording ? 'Stop Recording' : 'Record Button'}</ThemedText>
       </View>
 
-      <LanguagePicker title="Input Language" selected={sourceLanguage} onSelect={setSourceLanguage} />
-      <LanguagePicker title="Output Language" selected={targetLanguage} onSelect={setTargetLanguage} />
+      <LanguagePicker
+        title="Input Language"
+        languages={availableLanguages}
+        selected={sourceLanguage}
+        onSelect={setSourceLanguage}
+      />
+      <LanguagePicker
+        title="Output Language"
+        languages={availableLanguages}
+        selected={targetLanguage}
+        onSelect={setTargetLanguage}
+      />
 
       <View style={styles.textBox}>
         <TextInput
@@ -238,10 +272,12 @@ export default function HomeScreen() {
 
 function LanguagePicker({
   title,
+  languages,
   selected,
   onSelect,
 }: {
   title: string;
+  languages: SupportedLanguage[];
   selected: SupportedLanguage;
   onSelect: (language: SupportedLanguage) => void;
 }) {
@@ -249,7 +285,7 @@ function LanguagePicker({
     <View style={styles.languageBlock}>
       <ThemedText style={styles.languageTitle}>{title}</ThemedText>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {SUPPORTED_LANGUAGES.map((language) => (
+        {languages.map((language) => (
           <Pressable
             key={language}
             onPress={() => onSelect(language)}
