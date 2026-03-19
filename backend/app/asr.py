@@ -96,6 +96,8 @@ class ASRService:
         self.indic_asr_models = {}
         # Cache dict for loaded Indic processors (one per language model).
         self.indic_asr_processors = {}
+        # Protect lazy model cache initialization from concurrent first-use requests.
+        self._indic_asr_lock = Lock()
         # Optional provider override: indic_conformer_multi (fallbacks to legacy stack on failure).
         requested_provider = os.getenv("ASR_PROVIDER", DEFAULT_ASR_PROVIDER).strip().lower()
         if requested_provider not in SUPPORTED_ASR_PROVIDERS:
@@ -218,20 +220,26 @@ class ASRService:
         if lang_name not in INDIC_ASR_MODEL_IDS:
             raise ValueError(f"No IndicWav2Vec model configured for: {lang_name}")
 
+        if lang_name in self.indic_asr_models:
+            return self.indic_asr_models[lang_name], self.indic_asr_processors[lang_name]
+
         # Lazy loading: load model only first time this language is requested.
-        if lang_name not in self.indic_asr_models:
-            # Look up model id for this language.
-            model_id = INDIC_ASR_MODEL_IDS[lang_name]
-            # Download/load CTC model and move to GPU/CPU.
-            self.indic_asr_models[lang_name] = AutoModelForCTC.from_pretrained(
-                model_id,
-                token=self.hf_token,
-            ).to(self.device)
-            # Download/load matching processor for that model.
-            self.indic_asr_processors[lang_name] = AutoProcessor.from_pretrained(
-                model_id,
-                token=self.hf_token,
-            )
+        with self._indic_asr_lock:
+            if lang_name not in self.indic_asr_models:
+                # Look up model id for this language.
+                model_id = INDIC_ASR_MODEL_IDS[lang_name]
+                # Download/load CTC model and move to GPU/CPU.
+                model = AutoModelForCTC.from_pretrained(
+                    model_id,
+                    token=self.hf_token,
+                ).to(self.device)
+                model.eval()
+                self.indic_asr_models[lang_name] = model
+                # Download/load matching processor for that model.
+                self.indic_asr_processors[lang_name] = AutoProcessor.from_pretrained(
+                    model_id,
+                    token=self.hf_token,
+                )
 
         # Return already-loaded (or newly loaded) model and processor.
         return self.indic_asr_models[lang_name], self.indic_asr_processors[lang_name]
@@ -240,7 +248,6 @@ class ASRService:
     def _indicwav2vec_transcribe(self, audio_path: str, src_lang_name: str) -> tuple[str, bool]:
         # Get model + processor for requested language.
         model, processor = self._get_indic_asr(src_lang_name)
-        model.eval()
         # Load and normalize audio to 16kHz mono.
         waveform, sr = self._load_and_resample_audio(audio_path, target_sr=16000)
         # Convert waveform tensor to NumPy for processor input.

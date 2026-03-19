@@ -1,7 +1,9 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Linking,
   Platform,
   Pressable,
@@ -9,10 +11,13 @@ import {
   StyleSheet,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/constants/languages';
+import { Fonts } from '@/constants/theme';
 import {
   API_BASE_URL,
   fetchSupportedLanguages,
@@ -22,7 +27,20 @@ import {
   type TranslationResponse,
 } from '@/services/api';
 
+const SURFACE = '#10242a';
+const SURFACE_BORDER = 'rgba(233, 228, 212, 0.12)';
+const PANEL = '#17333a';
+const PANEL_ALT = '#0d1b1f';
+const ACCENT = '#f2a65a';
+const ACCENT_STRONG = '#ffd07a';
+const TEXT_PRIMARY = '#f7f2e8';
+const TEXT_MUTED = '#aebcb7';
+const SUCCESS = '#8fd19e';
+const DANGER = '#ff8d7a';
+
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [availableLanguages, setAvailableLanguages] = useState<SupportedLanguage[]>([...SUPPORTED_LANGUAGES]);
   const [sourceLanguage, setSourceLanguage] = useState<SupportedLanguage>('English');
   const [targetLanguage, setTargetLanguage] = useState<SupportedLanguage>('Hindi');
@@ -32,9 +50,27 @@ export default function HomeScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranslatingText, setIsTranslatingText] = useState(false);
   const [isTranslatingSpeech, setIsTranslatingSpeech] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const liftAnim = useRef(new Animated.Value(24)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 650,
+        useNativeDriver: true,
+      }),
+      Animated.timing(liftAnim, {
+        toValue: 0,
+        duration: 650,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, liftAnim]);
 
   useEffect(() => {
     let isMounted = true;
@@ -58,7 +94,17 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const canTranslateText = useMemo(() => inputText.trim().length > 0 && !isTranslatingSpeech, [inputText, isTranslatingSpeech]);
+  const activeRequest = isTranslatingText || isTranslatingSpeech;
+  const canTranslateText = useMemo(
+    () => inputText.trim().length > 0 && !isTranslatingSpeech,
+    [inputText, isTranslatingSpeech],
+  );
+  const statusTone = isRecording
+    ? { color: DANGER, label: 'Listening live' }
+    : activeRequest
+      ? { color: ACCENT_STRONG, label: 'Working on your translation' }
+      : { color: SUCCESS, label: 'Ready for text or speech' };
+  const compactLayout = width < 410;
 
   async function translateFromText() {
     if (!inputText.trim()) return;
@@ -90,7 +136,7 @@ export default function HomeScreen() {
     if (Platform.OS !== 'web') {
       Alert.alert(
         'Speech input needs web in this build',
-        'Use Expo Web for recording or add expo-av in a network-enabled setup.',
+        'Use Expo Web for recording or add native recording support in a later frontend pass.',
       );
       return;
     }
@@ -171,13 +217,18 @@ export default function HomeScreen() {
   }
 
   async function playAudio(audioUrl: string) {
-    if (Platform.OS === 'web') {
-      const audio = new Audio(audioUrl);
-      await audio.play();
-      return;
-    }
+    setIsPlayingAudio(true);
+    try {
+      if (Platform.OS === 'web') {
+        const audio = new Audio(audioUrl);
+        await audio.play();
+        return;
+      }
 
-    await Linking.openURL(audioUrl);
+      await Linking.openURL(audioUrl);
+    } finally {
+      setIsPlayingAudio(false);
+    }
   }
 
   function switchLanguages() {
@@ -189,101 +240,216 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ThemedText style={styles.title}>Vaani Connect</ThemedText>
+    <View style={styles.screen}>
+      <View style={[styles.blob, styles.blobLarge]} />
+      <View style={[styles.blob, styles.blobSmall]} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + 20,
+            paddingBottom: Math.max(insets.bottom + 112, 132),
+          },
+        ]}
+        showsVerticalScrollIndicator={false}>
+        <Animated.View
+          style={[
+            styles.stack,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: liftAnim }],
+            },
+          ]}>
+          <View style={styles.heroCard}>
+            <View style={[styles.statusPill, { borderColor: statusTone.color }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusTone.color }]} />
+              <ThemedText style={styles.statusText}>{statusTone.label}</ThemedText>
+            </View>
+            <ThemedText style={styles.kicker}>Voice-first translation studio</ThemedText>
+            <ThemedText style={styles.title}>Vaani Connect</ThemedText>
+            <ThemedText style={styles.subtitle}>
+              Move between speech and text quickly, keep the language controls visible, and play translated audio
+              without losing your place.
+            </ThemedText>
 
-      <View style={styles.recordRow}>
-        <Pressable
-          style={[styles.circleButton, isRecording && styles.circleButtonStop]}
-          onPress={toggleRecording}
-          disabled={isTranslatingSpeech || isTranslatingText}>
-          {isTranslatingSpeech ? (
-            <ActivityIndicator color="#0b1220" />
-          ) : (
-            <ThemedText style={styles.recordIcon}>{isRecording ? '⏹' : '⏺'}</ThemedText>
-          )}
-        </Pressable>
-        <ThemedText style={styles.buttonLabel}>{isRecording ? 'Stop Recording' : 'Record Button'}</ThemedText>
+            <View style={[styles.heroStats, compactLayout && styles.heroStatsCompact]}>
+              <StatBadge icon="translate" label={`${sourceLanguage} to ${targetLanguage}`} />
+              <StatBadge icon="graphic-eq" label={Platform.OS === 'web' ? 'Live mic on web' : 'Text mode everywhere'} />
+              <StatBadge icon="volume-up" label={latestAudioUrl ? 'Voice response ready' : 'Audio generated on demand'} />
+            </View>
+          </View>
+
+          <View style={[styles.actionRow, compactLayout && styles.actionColumn]}>
+            <ActionButton
+              icon={isRecording ? 'stop-circle' : 'keyboard-voice'}
+              title={isRecording ? 'Stop capture' : 'Record speech'}
+              subtitle={Platform.OS === 'web' ? 'Use your microphone for live input' : 'Available on Expo Web in this build'}
+              accent={isRecording ? DANGER : ACCENT}
+              onPress={toggleRecording}
+              disabled={activeRequest}
+              loading={isTranslatingSpeech}
+            />
+            <ActionButton
+              icon="swap-horiz"
+              title="Swap languages"
+              subtitle="Flip source and destination instantly"
+              accent="#8fd3c7"
+              onPress={switchLanguages}
+              disabled={activeRequest}
+            />
+            <ActionButton
+              icon="play-circle-filled"
+              title={isPlayingAudio ? 'Playing output' : 'Play response'}
+              subtitle={latestAudioUrl ? 'Use the latest generated voice clip' : 'Generate audio if needed'}
+              accent="#f7d46b"
+              onPress={playOutputAudio}
+              disabled={activeRequest || (!outputText.trim() && !latestAudioUrl)}
+              loading={isPlayingAudio}
+            />
+          </View>
+
+          <View style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <ThemedText style={styles.panelTitle}>Language routing</ThemedText>
+              <ThemedText style={styles.panelMeta}>Backend source: {availableLanguages.length} supported options</ThemedText>
+            </View>
+
+            <LanguagePicker
+              title="Input language"
+              caption="This drives text translation and speech recognition."
+              languages={availableLanguages}
+              selected={sourceLanguage}
+              onSelect={setSourceLanguage}
+            />
+            <LanguagePicker
+              title="Output language"
+              caption="The translated text and generated audio will follow this selection."
+              languages={availableLanguages}
+              selected={targetLanguage}
+              onSelect={setTargetLanguage}
+            />
+          </View>
+
+          <View style={styles.editorGrid}>
+            <EditorCard
+              label="Source"
+              title="Type or dictate your phrase"
+              helper={isRecording ? 'Recording in progress. Press stop when you are done.' : 'Paste text or use the microphone action above.'}
+              value={inputText}
+              placeholder="Start with a phrase, question, or short instruction."
+              onChangeText={setInputText}
+              editable
+              footer={`${inputText.trim().length} characters`}
+            />
+            <EditorCard
+              label="Result"
+              title="Translated output"
+              helper={outputText ? 'Review the translated text, then play the audio response if you need voice output.' : 'Your translated text will appear here.'}
+              value={outputText}
+              placeholder="Nothing translated yet."
+              editable={false}
+              footer={latestAudioUrl ? 'Voice clip attached to latest response' : 'Audio will be generated by the backend'}
+            />
+          </View>
+
+          <Pressable
+            style={[styles.translateButton, (!canTranslateText || isTranslatingText) && styles.translateButtonDisabled]}
+            onPress={translateFromText}
+            disabled={!canTranslateText || isTranslatingText}>
+            <View style={styles.translateInner}>
+              {isTranslatingText ? (
+                <ActivityIndicator color={PANEL_ALT} />
+              ) : (
+                <MaterialIcons name="auto-awesome" size={22} color={PANEL_ALT} />
+              )}
+              <View style={styles.translateCopy}>
+                <ThemedText style={styles.translateTitle}>
+                  {isTranslatingText ? 'Translating now' : 'Translate text'}
+                </ThemedText>
+                <ThemedText style={styles.translateSubtitle}>
+                  {inputText.trim() ? 'Send the current source text to the backend' : 'Enter source text to begin'}
+                </ThemedText>
+              </View>
+            </View>
+          </Pressable>
+
+          <View style={styles.footerCard}>
+            <View style={styles.footerRow}>
+              <ThemedText style={styles.footerLabel}>API endpoint</ThemedText>
+              <ThemedText style={styles.footerValue}>{API_BASE_URL}</ThemedText>
+            </View>
+            <View style={styles.footerRow}>
+              <ThemedText style={styles.footerLabel}>Best experience</ThemedText>
+              <ThemedText style={styles.footerValue}>
+                Web for live recording, any target for text translation and playback
+              </ThemedText>
+            </View>
+          </View>
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function StatBadge({ icon, label }: { icon: keyof typeof MaterialIcons.glyphMap; label: string }) {
+  return (
+    <View style={styles.statBadge}>
+      <MaterialIcons name={icon} size={16} color={ACCENT_STRONG} />
+      <ThemedText style={styles.statLabel}>{label}</ThemedText>
+    </View>
+  );
+}
+
+function ActionButton({
+  icon,
+  title,
+  subtitle,
+  accent,
+  onPress,
+  disabled,
+  loading,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  title: string;
+  subtitle: string;
+  accent: string;
+  onPress: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <Pressable style={[styles.actionButton, disabled && styles.actionButtonDisabled]} onPress={onPress} disabled={disabled}>
+      <View style={[styles.actionIcon, { backgroundColor: accent }]}>
+        {loading ? <ActivityIndicator color={PANEL_ALT} /> : <MaterialIcons name={icon} size={22} color={PANEL_ALT} />}
       </View>
-
-      <LanguagePicker
-        title="Input Language"
-        languages={availableLanguages}
-        selected={sourceLanguage}
-        onSelect={setSourceLanguage}
-      />
-      <LanguagePicker
-        title="Output Language"
-        languages={availableLanguages}
-        selected={targetLanguage}
-        onSelect={setTargetLanguage}
-      />
-
-      <View style={styles.textBox}>
-        <TextInput
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder="Input Text Box"
-          placeholderTextColor="#8d8d8d"
-          multiline
-          style={styles.input}
-        />
+      <View style={styles.actionCopy}>
+        <ThemedText style={styles.actionTitle}>{title}</ThemedText>
+        <ThemedText style={styles.actionSubtitle}>{subtitle}</ThemedText>
       </View>
-
-      <View style={styles.arrowRow}>
-        <Pressable style={styles.arrowButton} onPress={switchLanguages}>
-          <ThemedText style={styles.arrowText}>⇅</ThemedText>
-        </Pressable>
-      </View>
-
-      <Pressable
-        style={[styles.translateButton, (!canTranslateText || isTranslatingText) && styles.disabledButton]}
-        onPress={translateFromText}
-        disabled={!canTranslateText || isTranslatingText}>
-        {isTranslatingText ? (
-          <ActivityIndicator color="#071322" />
-        ) : (
-          <ThemedText style={styles.translateButtonText}>Translate</ThemedText>
-        )}
-      </Pressable>
-
-      <View style={styles.textBox}>
-        <TextInput
-          value={outputText}
-          editable={false}
-          placeholder="Out put Text Box"
-          placeholderTextColor="#8d8d8d"
-          multiline
-          style={[styles.input, styles.outputInput]}
-        />
-      </View>
-
-      <View style={styles.speakRow}>
-        <ThemedText style={styles.buttonLabel}>Speak Output button</ThemedText>
-        <Pressable style={styles.circleButton} onPress={playOutputAudio}>
-          <ThemedText style={styles.speakIcon}>▶</ThemedText>
-        </Pressable>
-      </View>
-
-      <ThemedText style={styles.footer}>All the credibilities</ThemedText>
-    </ScrollView>
+    </Pressable>
   );
 }
 
 function LanguagePicker({
   title,
+  caption,
   languages,
   selected,
   onSelect,
 }: {
   title: string;
+  caption: string;
   languages: SupportedLanguage[];
   selected: SupportedLanguage;
   onSelect: (language: SupportedLanguage) => void;
 }) {
   return (
     <View style={styles.languageBlock}>
-      <ThemedText style={styles.languageTitle}>{title}</ThemedText>
+      <View style={styles.languageHeading}>
+        <ThemedText style={styles.languageTitle}>{title}</ThemedText>
+        <ThemedText style={styles.languageCaption}>{caption}</ThemedText>
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {languages.map((language) => (
           <Pressable
@@ -298,148 +464,380 @@ function LanguagePicker({
   );
 }
 
+function EditorCard({
+  label,
+  title,
+  helper,
+  value,
+  placeholder,
+  editable,
+  onChangeText,
+  footer,
+}: {
+  label: string;
+  title: string;
+  helper: string;
+  value: string;
+  placeholder: string;
+  editable: boolean;
+  onChangeText?: (value: string) => void;
+  footer: string;
+}) {
+  return (
+    <View style={styles.editorCard}>
+      <View style={styles.editorHeader}>
+        <ThemedText style={styles.editorLabel}>{label}</ThemedText>
+        <ThemedText style={styles.editorTitle}>{title}</ThemedText>
+        <ThemedText style={styles.editorHelper}>{helper}</ThemedText>
+      </View>
+      <View style={[styles.editorField, !editable && styles.editorFieldMuted]}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="rgba(174, 188, 183, 0.55)"
+          multiline
+          editable={editable}
+          textAlignVertical="top"
+          style={styles.editorInput}
+        />
+      </View>
+      <ThemedText style={styles.editorFooter}>{footer}</ThemedText>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#000' },
+  screen: {
+    flex: 1,
+    backgroundColor: '#071317',
+  },
+  scroll: {
+    flex: 1,
+  },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 44,
-    paddingBottom: 56,
-    gap: 18,
-  },
-  title: {
-    color: '#f5f5f5',
-    fontSize: 56,
-    lineHeight: 62,
-    fontWeight: '300',
-    letterSpacing: 0.3,
-  },
-  recordRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  speakRow: {
-    marginTop: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  circleButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#66b7f2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleButtonStop: { backgroundColor: '#f97316' },
-  recordIcon: {
-    color: '#0b1220',
-    fontSize: 20,
-    lineHeight: 20,
-    fontWeight: '700',
-  },
-  buttonLabel: {
-    color: '#f5f5f5',
-    fontSize: 16,
-  },
-  textBox: {
-    minHeight: 164,
-    borderWidth: 2,
-    borderColor: '#ececec',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    justifyContent: 'center',
-  },
-  input: {
-    minHeight: 132,
-    color: '#f5f5f5',
-    fontSize: 28,
-    lineHeight: 34,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-  },
-  outputInput: {
-    opacity: 0.92,
-  },
-  arrowRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
-  },
-  arrowButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  arrowText: {
-    color: '#f5f5f5',
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '500',
-  },
-  translateButton: {
-    backgroundColor: '#66b7f2',
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
     paddingHorizontal: 20,
   },
-  translateButtonText: {
-    color: '#071322',
+  stack: {
+    gap: 18,
+  },
+  blob: {
+    position: 'absolute',
+    borderRadius: 999,
+    opacity: 0.35,
+  },
+  blobLarge: {
+    width: 280,
+    height: 280,
+    backgroundColor: '#16454f',
+    top: -80,
+    right: -70,
+  },
+  blobSmall: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#533026',
+    bottom: 90,
+    left: -70,
+  },
+  heroCard: {
+    backgroundColor: SURFACE,
+    borderWidth: 1,
+    borderColor: SURFACE_BORDER,
+    borderRadius: 28,
+    padding: 24,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  statusPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(8, 19, 22, 0.92)',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    color: TEXT_PRIMARY,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: Fonts.rounded,
+    letterSpacing: 0.4,
+  },
+  kicker: {
+    color: ACCENT_STRONG,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontFamily: Fonts.rounded,
+  },
+  title: {
+    color: TEXT_PRIMARY,
+    fontSize: 44,
+    lineHeight: 46,
+    fontWeight: '700',
+    fontFamily: Fonts.serif,
+  },
+  subtitle: {
+    color: TEXT_MUTED,
     fontSize: 16,
+    lineHeight: 24,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingTop: 4,
+  },
+  heroStatsCompact: {
+    flexDirection: 'column',
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(247, 242, 232, 0.06)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  statLabel: {
+    color: TEXT_PRIMARY,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionColumn: {
+    flexDirection: 'column',
+  },
+  actionButton: {
+    flex: 1,
+    minHeight: 120,
+    backgroundColor: PANEL_ALT,
+    borderWidth: 1,
+    borderColor: SURFACE_BORDER,
+    borderRadius: 24,
+    padding: 16,
+    gap: 14,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCopy: {
+    gap: 6,
+  },
+  actionTitle: {
+    color: TEXT_PRIMARY,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
+  },
+  actionSubtitle: {
+    color: TEXT_MUTED,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  panel: {
+    backgroundColor: SURFACE,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: SURFACE_BORDER,
+    padding: 20,
+    gap: 18,
+  },
+  panelHeader: {
+    gap: 4,
+  },
+  panelTitle: {
+    color: TEXT_PRIMARY,
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: Fonts.serif,
     fontWeight: '700',
   },
-  disabledButton: {
-    opacity: 0.4,
-  },
-  speakIcon: {
-    color: '#0b1220',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  footer: {
-    marginTop: 36,
-    marginBottom: 20,
-    color: '#f5f5f5',
-    alignSelf: 'flex-end',
-    fontSize: 20,
+  panelMeta: {
+    color: TEXT_MUTED,
+    fontSize: 13,
+    lineHeight: 18,
   },
   languageBlock: {
-    gap: 8,
+    gap: 10,
+  },
+  languageHeading: {
+    gap: 3,
   },
   languageTitle: {
-    color: '#f5f5f5',
+    color: TEXT_PRIMARY,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  languageCaption: {
+    color: TEXT_MUTED,
     fontSize: 13,
-    opacity: 0.85,
+    lineHeight: 18,
   },
   chipRow: {
     gap: 10,
-    paddingBottom: 2,
+    paddingRight: 6,
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#4a4a4a',
+    borderColor: 'rgba(247, 242, 232, 0.12)',
     borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 10,
+    backgroundColor: PANEL_ALT,
   },
   chipActive: {
-    backgroundColor: '#66b7f2',
-    borderColor: '#66b7f2',
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
   },
   chipLabel: {
-    color: '#f5f5f5',
+    color: TEXT_PRIMARY,
+    fontSize: 14,
+    lineHeight: 18,
   },
   chipLabelActive: {
-    color: '#071322',
-    fontWeight: '600',
+    color: PANEL_ALT,
+    fontWeight: '700',
+  },
+  editorGrid: {
+    gap: 14,
+  },
+  editorCard: {
+    backgroundColor: SURFACE,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: SURFACE_BORDER,
+    padding: 20,
+    gap: 14,
+  },
+  editorHeader: {
+    gap: 5,
+  },
+  editorLabel: {
+    color: ACCENT_STRONG,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontFamily: Fonts.rounded,
+  },
+  editorTitle: {
+    color: TEXT_PRIMARY,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '700',
+    fontFamily: Fonts.serif,
+  },
+  editorHelper: {
+    color: TEXT_MUTED,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  editorField: {
+    minHeight: 190,
+    backgroundColor: PANEL,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(247, 242, 232, 0.08)',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  editorFieldMuted: {
+    backgroundColor: PANEL_ALT,
+  },
+  editorInput: {
+    minHeight: 156,
+    color: TEXT_PRIMARY,
+    fontSize: 20,
+    lineHeight: 29,
+  },
+  editorFooter: {
+    color: TEXT_MUTED,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  translateButton: {
+    backgroundColor: ACCENT,
+    borderRadius: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  translateButtonDisabled: {
+    opacity: 0.45,
+  },
+  translateInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  translateCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  translateTitle: {
+    color: PANEL_ALT,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '700',
+  },
+  translateSubtitle: {
+    color: 'rgba(13, 27, 31, 0.74)',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  footerCard: {
+    backgroundColor: 'rgba(16, 36, 42, 0.8)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: SURFACE_BORDER,
+    padding: 18,
+    gap: 12,
+  },
+  footerRow: {
+    gap: 4,
+  },
+  footerLabel: {
+    color: ACCENT_STRONG,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontFamily: Fonts.rounded,
+  },
+  footerValue: {
+    color: TEXT_PRIMARY,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

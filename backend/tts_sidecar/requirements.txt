@@ -1,0 +1,10 @@
+pip==24.0
+torch==2.5.1
+torchaudio==2.5.1
+transformers==4.46.1
+parler-tts==0.2.3
+sentencepiece
+soundfile
+huggingface_hub
+fastapi
+uvicorn[standard]

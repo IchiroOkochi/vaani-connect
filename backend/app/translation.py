@@ -39,6 +39,7 @@ class TranslationService:
             EN_INDIC_MODEL_ID,
             trust_remote_code=True,
         ).to(self.device)
+        self.en_indic_model.eval()
 
         # Tokenizer for Indic -> English model.
         self.indic_en_tokenizer = AutoTokenizer.from_pretrained(
@@ -50,6 +51,7 @@ class TranslationService:
             INDIC_EN_MODEL_ID,
             trust_remote_code=True,
         ).to(self.device)
+        self.indic_en_model.eval()
 
         # Tokenizer for direct Indic -> Indic model.
         self.indic_indic_tokenizer = AutoTokenizer.from_pretrained(
@@ -61,6 +63,7 @@ class TranslationService:
             INDIC_INDIC_MODEL_ID,
             trust_remote_code=True,
         ).to(self.device)
+        self.indic_indic_model.eval()
 
     # Internal helper that runs one translation pass with a selected model/tokenizer.
     def _run_translation_with_stats(

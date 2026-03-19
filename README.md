@@ -11,10 +11,12 @@ If you are brand new, follow this guide from top to bottom.
 
 ## Quick overview (what you will run)
 
-You will run **2 terminals**:
+You will usually run **2 terminals**:
 
 1. **Backend terminal** (inside WSL if possible) on port `8000`
 2. **Frontend terminal** (Expo) on port `8081` (default)
+
+If you enable the optional Indic Parler-TTS sidecar, run a **third terminal** for `backend/tts_sidecar` on port `8010`.
 
 The frontend calls backend routes like:
 
@@ -157,9 +159,53 @@ curl http://localhost:8000/health
 
 ## Helpful notes
 
-- Folder name is intentionally `bakcend/` in this repository.
+- Folder name is intentionally `backend/` in this repository.
 - Backend observability details (VAANI_METRICS logs + `/metrics/recent`) are documented in `bakcend/README.md`.
 - Professional benchmark harness docs are in `bakcend/benchmark/README.md`.
+- Optional Indic Parler-TTS sidecar docs are in `backend/tts_sidecar/README.md`.
+- You can launch the recommended dev stack with one command instead of starting each service manually:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\start-dev-stack.ps1
+```
+
+- That launcher starts the main backend in WSL, starts the Indic Parler-TTS sidecar in WSL when its virtual environment exists, and starts the Expo frontend in Windows with the default `web` target.
+- To stop the whole stack:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\stop-dev-stack.ps1
+```
+
+- Use `-FrontendTarget start`, `-FrontendTarget android`, or `-FrontendTarget ios` if you want a different Expo mode than the default web launch.
+- Project update history lives in `CHANGELOG.md`.
+- You can keep `CHANGELOG.md` up to date automatically while you work:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\start-changelog-agent.ps1
+```
+
+Stop it with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\stop-changelog-agent.ps1
+```
+
+- In VS Code, run `Tasks: Run Task` and choose `Changelog Agent: Start`, `Changelog Agent: Start (Dry Run)`, or `Changelog Agent: Stop`.
+- In VS Code, you can also use `Dev Stack: Start`, `Dev Stack: Start (Expo Menu)`, and `Dev Stack: Stop`.
+- To start it automatically when you log in on Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install-changelog-agent-scheduled-task.ps1
+```
+
+Remove that auto-start task with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\uninstall-changelog-agent-scheduled-task.ps1
+```
+
+- In VS Code, you can also use `Changelog Agent: Install Auto-Start`, `Changelog Agent: Install Auto-Start (Dry Run)`, and `Changelog Agent: Remove Auto-Start`.
+- The watcher debounces file saves, ignores build/venv folders, and uses local `codex exec` to refresh only the root changelog based on current uncommitted changes.
 - You can also run backend demo directly:
 
 ```bash

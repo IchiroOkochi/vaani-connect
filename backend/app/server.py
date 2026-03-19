@@ -14,70 +14,15 @@ from typing import Any, Deque  # Type hint for deque of timestamps.
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile  # FastAPI core types.
 from fastapi.middleware.cors import CORSMiddleware  # CORS middleware for browser apps.
-from fastapi.responses import FileResponse  # Return files (mp3) from endpoints.
+from fastapi.responses import FileResponse  # Return generated audio files from endpoints.
 from pydantic import BaseModel  # Request body schema model.
 
+from app.languages import LANGUAGE_ALIASES, LANGUAGE_TO_CODE
 from app.main import build_services  # Builds translation + ASR services.
-from app.tts import tts_generate  # Converts translated text into speech audio.
+from app.tts import tts_generate_with_metadata  # Converts translated text into speech audio.
 
 # Module logger for operational visibility.
 logger = logging.getLogger(__name__)
-
-# Canonical language names mapped to IndicTrans language codes.
-LANGUAGE_TO_CODE = {
-    "English": "eng_Latn",
-    "Assamese": "asm_Beng",
-    "Bodo": "brx_Deva",
-    "Dogri": "doi_Deva",
-    "Gujarati": "guj_Gujr",
-    "Hindi": "hin_Deva",
-    "Kannada": "kan_Knda",
-    "Kashmiri": "kas_Arab",
-    "Konkani": "gom_Deva",
-    "Maithili": "mai_Deva",
-    "Malayalam": "mal_Mlym",
-    "Bengali": "ben_Beng",
-    "Manipuri": "mni_Mtei",
-    "Marathi": "mar_Deva",
-    "Nepali": "npi_Deva",
-    "Odia": "ory_Orya",
-    "Punjabi": "pan_Guru",
-    "Sanskrit": "san_Deva",
-    "Santali": "sat_Olck",
-    "Sindhi": "snd_Arab",
-    "Tamil": "tam_Taml",
-    "Telugu": "tel_Telu",
-    "Urdu": "urd_Arab",
-}
-
-# Dialect and alternate names that are normalized to canonical names above.
-LANGUAGE_ALIASES = {
-    # Hindi cluster dialects.
-    "Awadhi": "Hindi",
-    "Avadhi": "Hindi",
-    "Bhojpuri": "Hindi",
-    "Braj": "Hindi",
-    "Bundeli": "Hindi",
-    "Chhattisgarhi": "Hindi",
-    "Garhwali": "Hindi",
-    "Haryanvi": "Hindi",
-    "Kumaoni": "Hindi",
-    "Magahi": "Hindi",
-    "Marwari": "Hindi",
-    # Bengali cluster dialects.
-    "Sylheti": "Bengali",
-    "Chittagonian": "Bengali",
-    # Urdu variants.
-    "Dakhini": "Urdu",
-    "Hyderabadi Urdu": "Urdu",
-    # Kannada variants.
-    "Tulu": "Kannada",
-    "Kodava": "Kannada",
-    # Common alternate spellings.
-    "Bangla": "Bengali",
-    "Oriya": "Odia",
-    "Meitei": "Manipuri",
-}
 
 # Read uploaded audio in 1MB chunks to avoid loading everything into memory at once.
 UPLOAD_CHUNK_BYTES = 1024 * 1024
@@ -85,6 +30,12 @@ UPLOAD_CHUNK_BYTES = 1024 * 1024
 DEFAULT_ALLOWED_ORIGINS = "http://localhost:8081,http://127.0.0.1:8081,http://localhost:3000"
 # Allowed audio file extensions for speech upload endpoint.
 ALLOWED_AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".ogg", ".flac", ".webm"}
+# Generated audio formats that can be served back to clients.
+SERVED_AUDIO_MEDIA_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+}
 
 
 # Read an integer env var safely; return default when missing/invalid.
@@ -156,7 +107,7 @@ RATE_LIMIT_MAX_REQUESTS = _env_int("VAANI_RATE_LIMIT_REQUESTS", 30)
 RATE_LIMIT_WINDOW_SECONDS = _env_int("VAANI_RATE_LIMIT_WINDOW_SECONDS", 60)
 # Upload size cap (bytes) for incoming audio files.
 MAX_UPLOAD_BYTES = _env_int("VAANI_MAX_UPLOAD_BYTES", 10 * 1024 * 1024)
-# Generated mp3 lifetime in seconds before cleanup.
+# Generated audio lifetime in seconds before cleanup.
 AUDIO_TTL_SECONDS = _env_int("VAANI_AUDIO_TTL_SECONDS", 60 * 60)
 # Allowed CORS origins.
 ALLOWED_ORIGINS = _env_csv("VAANI_ALLOWED_ORIGINS", DEFAULT_ALLOWED_ORIGINS)
@@ -298,18 +249,19 @@ def _warmup_services() -> None:
             logger.debug("ASR warmup skipped for %s.", canonical, exc_info=True)
 
 
-# Delete old generated mp3 files to keep temp folder from growing forever.
+# Delete old generated audio files to keep temp folder from growing forever.
 def _cleanup_expired_audio_files() -> None:
     if AUDIO_TTL_SECONDS <= 0:
         return  # Non-positive ttl disables cleanup.
 
     cutoff = time.time() - AUDIO_TTL_SECONDS  # Files older than this should be removed.
-    for candidate in audio_dir.glob("*.mp3"):  # Only manage mp3 files created by this app.
-        try:
-            if candidate.stat().st_mtime < cutoff:
-                candidate.unlink(missing_ok=True)
-        except OSError:
-            continue  # Ignore files that fail due to race/permissions.
+    for suffix in SERVED_AUDIO_MEDIA_TYPES:
+        for candidate in audio_dir.glob(f"*{suffix}"):
+            try:
+                if candidate.stat().st_mtime < cutoff:
+                    candidate.unlink(missing_ok=True)
+            except OSError:
+                continue  # Ignore files that fail due to race/permissions.
 
 
 # Best-effort file deletion helper that never raises to caller.
@@ -341,20 +293,24 @@ def _log_metrics(event: str, payload: dict[str, Any]) -> None:
 
 # Validate requested audio filename and return safe absolute path under audio directory.
 def _safe_audio_path(filename: str) -> Path:
-    if not filename or Path(filename).name != filename:
+    if not filename or "/" in filename or "\\" in filename or Path(filename).name != filename:
         raise HTTPException(status_code=400, detail="Invalid audio filename")  # Blocks path traversal input.
 
     resolved = (audio_dir / filename).resolve()  # Resolve to absolute normalized path.
     if resolved.parent != audio_dir_resolved:
         raise HTTPException(status_code=400, detail="Invalid audio filename")  # Ensures file stays in allowed dir.
-    if resolved.suffix.lower() != ".mp3":
-        raise HTTPException(status_code=400, detail="Unsupported audio format")  # Only mp3 served by this endpoint.
+    if resolved.suffix.lower() not in SERVED_AUDIO_MEDIA_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported audio format")
     return resolved
 
 
 # Copy generated TTS file to stable temp location and return URL path.
 def _persist_audio_file(tts_path: str) -> str:
-    audio_id = f"{uuid.uuid4()}.mp3"  # Unique output filename.
+    suffix = Path(tts_path).suffix.lower()
+    if suffix not in SERVED_AUDIO_MEDIA_TYPES:
+        raise HTTPException(status_code=500, detail=f"Unsupported generated audio format: {suffix}")
+
+    audio_id = f"{uuid.uuid4()}{suffix}"  # Unique output filename.
     stable_path = audio_dir / audio_id  # Final destination in app audio dir.
     try:
         shutil.copyfile(tts_path, stable_path)  # Move output into stable publicly served location.
@@ -371,6 +327,48 @@ def _validate_audio_upload(audio: UploadFile) -> str:
     if audio.content_type and not audio.content_type.startswith("audio/"):
         raise HTTPException(status_code=400, detail="Uploaded file must be an audio file")
     return suffix
+
+
+def _run_tts_best_effort(text: str, target_language: str, enabled: bool) -> tuple[str | None, dict[str, Any]]:
+    tts_stats: dict[str, Any] = {
+        "enabled": enabled,
+        "requested_language": target_language,
+        "provider": None,
+        "voice_language": None,
+        "language_code": None,
+        "uses_fallback_voice": None,
+        "latency_ms": None,
+        "audio_generated": False,
+    }
+    if not enabled:
+        return None, tts_stats
+
+    tts_started = time.perf_counter()
+    tts_generation = None
+    try:
+        tts_generation = tts_generate_with_metadata(text, target_language)
+        tts_stats["latency_ms"] = round((time.perf_counter() - tts_started) * 1000, 2)
+        if not tts_generation or not tts_generation.path:
+            return None, tts_stats
+
+        tts_stats["provider"] = tts_generation.provider
+        tts_stats["voice_language"] = tts_generation.voice_language
+        tts_stats["language_code"] = tts_generation.language_code
+        tts_stats["uses_fallback_voice"] = tts_generation.uses_fallback_voice
+        tts_stats["output_format"] = Path(tts_generation.path).suffix.lower()
+
+        persist_started = time.perf_counter()
+        audio_url = _persist_audio_file(tts_generation.path)
+        tts_stats["persist_ms"] = round((time.perf_counter() - persist_started) * 1000, 2)
+        tts_stats["audio_generated"] = True
+        return audio_url, tts_stats
+    except Exception as exc:  # noqa: BLE001 - translation should still succeed when TTS is unavailable.
+        tts_stats["latency_ms"] = round((time.perf_counter() - tts_started) * 1000, 2)
+        tts_stats["error"] = str(exc)
+        logger.exception("TTS generation failed for target language %s.", target_language)
+        if tts_generation is not None:
+            _safe_unlink(tts_generation.path)
+        return None, tts_stats
 
 
 # Request body model for /translate/text endpoint.
@@ -393,7 +391,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create directory in OS temp area to store generated mp3 files.
+# Create directory in OS temp area to store generated audio files.
 audio_dir = Path(tempfile.gettempdir()) / "vaani_connect_audio"
 audio_dir.mkdir(parents=True, exist_ok=True)
 audio_dir_resolved = audio_dir.resolve()
@@ -472,23 +470,11 @@ def translate_text(
             "total_latency_ms": round((time.perf_counter() - translation_started) * 1000, 2),
         }
 
-    audio_url = None
-    tts_stats: dict[str, Any] = {
-        "enabled": payload.include_speech,
-        "provider": "gTTS",
-        "latency_ms": None,
-        "audio_generated": False,
-    }
-
-    if payload.include_speech:
-        tts_started = time.perf_counter()
-        tts_path = tts_generate(translated_text, target_language)  # Generate spoken audio for translated text.
-        tts_stats["latency_ms"] = round((time.perf_counter() - tts_started) * 1000, 2)
-        if tts_path:
-            persist_started = time.perf_counter()
-            audio_url = _persist_audio_file(tts_path)  # Store mp3 and return stable URL.
-            tts_stats["persist_ms"] = round((time.perf_counter() - persist_started) * 1000, 2)
-            tts_stats["audio_generated"] = True
+    audio_url, tts_stats = _run_tts_best_effort(
+        text=translated_text,
+        target_language=target_language,
+        enabled=payload.include_speech,
+    )
 
     total_latency_ms = round((time.perf_counter() - request_started) * 1000, 2)
     _log_metrics(
@@ -520,7 +506,7 @@ def translate_text(
 
 # Speech translation endpoint: audio upload -> ASR -> translation -> TTS.
 @app.post("/translate/speech")
-async def translate_speech(
+def translate_speech(
     request: Request,
     audio: UploadFile = File(...),  # Multipart uploaded file.
     source_language: str = Form(...),  # Source language string from form field.
@@ -545,7 +531,7 @@ async def translate_speech(
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_audio:
             temp_audio_path = temp_audio.name
             while True:
-                chunk = await audio.read(UPLOAD_CHUNK_BYTES)  # Read next chunk from uploaded file stream.
+                chunk = audio.file.read(UPLOAD_CHUNK_BYTES)  # Read next chunk from uploaded file stream.
                 if not chunk:
                     break  # EOF reached.
                 bytes_written += len(chunk)
@@ -597,21 +583,11 @@ async def translate_speech(
                 "total_latency_ms": round((time.perf_counter() - translation_started) * 1000, 2),
             }
 
-        audio_url = None
-        tts_stats: dict[str, Any] = {
-            "enabled": True,
-            "provider": "gTTS",
-            "latency_ms": None,
-            "audio_generated": False,
-        }
-        tts_started = time.perf_counter()
-        tts_path = tts_generate(translated_text, target_language_name)  # Target text -> spoken audio.
-        tts_stats["latency_ms"] = round((time.perf_counter() - tts_started) * 1000, 2)
-        if tts_path:
-            persist_started = time.perf_counter()
-            audio_url = _persist_audio_file(tts_path)  # Persist and expose audio URL.
-            tts_stats["persist_ms"] = round((time.perf_counter() - persist_started) * 1000, 2)
-            tts_stats["audio_generated"] = True
+        audio_url, tts_stats = _run_tts_best_effort(
+            text=translated_text,
+            target_language=target_language_name,
+            enabled=True,
+        )
 
         total_latency_ms = round((time.perf_counter() - request_started) * 1000, 2)
         _log_metrics(
@@ -641,16 +617,15 @@ async def translate_speech(
             "audio_url": audio_url,
         }
     finally:
-        await audio.close()  # Always close uploaded file handle.
-        if temp_audio_path and os.path.exists(temp_audio_path):
-            os.remove(temp_audio_path)  # Always cleanup temp upload file from disk.
+        audio.file.close()  # Always close uploaded file handle.
+        _safe_unlink(temp_audio_path)  # Always cleanup temp upload file from disk.
 
 
-# Serve generated mp3 files by filename.
+# Serve generated audio files by filename.
 @app.get("/audio/{filename}")
 def get_audio(filename: str):
     _cleanup_expired_audio_files()  # Cleanup old files before serving.
     path = _safe_audio_path(filename)  # Validate path to avoid traversal.
     if not path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
-    return FileResponse(path, media_type="audio/mpeg")
+    return FileResponse(path, media_type=SERVED_AUDIO_MEDIA_TYPES[path.suffix.lower()])

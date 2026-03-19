@@ -16,10 +16,11 @@ If you are on Windows, use **WSL** for best compatibility.
 - `app/config.py` → loads Hugging Face token from environment
 - `app/translation.py` → IndicTrans2 translation
 - `app/asr.py` → Whisper + IndicWav2Vec transcription
-- `app/tts.py` → gTTS audio generation
+- `app/tts.py` → TTS provider client (`gTTS` or Parler sidecar)
 - `app/setup.py` → downloads required NLTK data
 - `app/server.py` → FastAPI server
 - `app/main.py` → startup/demo script
+- `tts_sidecar/` → isolated Indic Parler-TTS service and dependencies
 
 ---
 
@@ -124,6 +125,12 @@ uvicorn app.server:app --host 0.0.0.0 --port 8000
   Auto-cleanup TTL for generated audio files (default `3600`).
 - `VAANI_RECENT_METRICS_LIMIT`  
   Max number of in-memory metric events kept for `/metrics/recent` (default `100`).
+- `VAANI_TTS_PROVIDER`  
+  TTS provider: `gtts` (default) or `parler_sidecar`.
+- `VAANI_TTS_SIDECAR_URL`  
+  Base URL for the isolated TTS sidecar when `VAANI_TTS_PROVIDER=parler_sidecar` (default `http://127.0.0.1:8010`).
+- `VAANI_TTS_SIDECAR_TIMEOUT_SECONDS`  
+  Timeout for sidecar TTS HTTP requests (default `120`).
 - `ASR_PROVIDER`  
   ASR provider mode: `legacy` (default) or `indic_conformer_multi`.
 - `ASR_INDIC_CONFORMER_MODEL_ID`  
@@ -141,6 +148,44 @@ uvicorn app.server:app --host 0.0.0.0 --port 8000
 - `POST /translate/text`
 - `POST /translate/speech` (multipart with `audio`, `source_language`, `target_language`)
 - `GET /audio/{filename}`
+
+---
+
+## Optional: Indic Parler-TTS sidecar
+
+If you want Parler-TTS without changing the main backend dependency stack, run the
+isolated sidecar in `tts_sidecar/`.
+
+### 1) Start the sidecar in its own environment
+
+```bash
+cd /workspace/vaani-connect/backend/tts_sidecar
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip==24.0
+pip install -r requirements.txt
+export HF_TOKEN="your_huggingface_read_token"
+uvicorn app:app --host 0.0.0.0 --port 8010
+```
+
+### 2) Point the main backend at the sidecar
+
+In the main backend shell:
+
+```bash
+export VAANI_TTS_PROVIDER=parler_sidecar
+export VAANI_TTS_SIDECAR_URL=http://127.0.0.1:8010
+uvicorn app.server:app --host 0.0.0.0 --port 8000
+```
+
+### 3) Verify the sidecar
+
+```bash
+curl http://localhost:8010/health
+```
+
+The main backend will continue to return `audio_url`, but sidecar-generated audio is
+served as WAV instead of assuming MP3-only output.
 
 ---
 

@@ -1,0 +1,189 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dev Stack: Start",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\start-dev-stack.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev Stack: Start (Expo Menu)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\start-dev-stack.ps1",
+        "-FrontendTarget",
+        "start"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev Stack: Stop",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\stop-dev-stack.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Changelog Agent: Start",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\start-changelog-agent.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Changelog Agent: Start (Dry Run)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\start-changelog-agent.ps1",
+        "-DryRun"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Changelog Agent: Stop",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\stop-changelog-agent.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Changelog Agent: Install Auto-Start",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\install-changelog-agent-scheduled-task.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Changelog Agent: Install Auto-Start (Dry Run)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\install-changelog-agent-scheduled-task.ps1",
+        "-DryRun"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Changelog Agent: Remove Auto-Start",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\tools\\uninstall-changelog-agent-scheduled-task.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}
