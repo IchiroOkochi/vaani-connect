@@ -5,6 +5,7 @@ import {
   Alert,
   Animated,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -38,6 +39,8 @@ const TEXT_MUTED = '#aebcb7';
 const SUCCESS = '#8fd19e';
 const DANGER = '#ff8d7a';
 
+type LanguageField = 'source' | 'target';
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -51,6 +54,8 @@ export default function HomeScreen() {
   const [isTranslatingText, setIsTranslatingText] = useState(false);
   const [isTranslatingSpeech, setIsTranslatingSpeech] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [languagePickerField, setLanguagePickerField] = useState<LanguageField | null>(null);
+  const [languageQuery, setLanguageQuery] = useState('');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -105,6 +110,13 @@ export default function HomeScreen() {
       ? { color: ACCENT_STRONG, label: 'Working on your translation' }
       : { color: SUCCESS, label: 'Ready for text or speech' };
   const compactLayout = width < 410;
+  const pickerSelection = languagePickerField === 'target' ? targetLanguage : sourceLanguage;
+  const filteredLanguages = useMemo(() => {
+    const query = languageQuery.trim().toLowerCase();
+    if (!query) return availableLanguages;
+    return availableLanguages.filter((language) => language.toLowerCase().includes(query));
+  }, [availableLanguages, languageQuery]);
+  const pickerTitle = languagePickerField === 'target' ? 'Choose output language' : 'Choose input language';
 
   async function translateFromText() {
     if (!inputText.trim()) return;
@@ -239,6 +251,26 @@ export default function HomeScreen() {
     setTargetLanguage(sourceLanguage);
   }
 
+  function openLanguagePicker(field: LanguageField) {
+    setLanguageQuery('');
+    setLanguagePickerField(field);
+  }
+
+  function closeLanguagePicker() {
+    setLanguagePickerField(null);
+    setLanguageQuery('');
+  }
+
+  function handleLanguageSelect(language: SupportedLanguage) {
+    if (languagePickerField === 'source') {
+      setSourceLanguage(language);
+    } else if (languagePickerField === 'target') {
+      setTargetLanguage(language);
+    }
+
+    closeLanguagePicker();
+  }
+
   return (
     <View style={styles.screen}>
       <View style={[styles.blob, styles.blobLarge]} />
@@ -261,16 +293,16 @@ export default function HomeScreen() {
               transform: [{ translateY: liftAnim }],
             },
           ]}>
-          <View style={styles.heroCard}>
+          <View style={[styles.heroCard, compactLayout && styles.heroCardCompact]}>
             <View style={[styles.statusPill, { borderColor: statusTone.color }]}>
               <View style={[styles.statusDot, { backgroundColor: statusTone.color }]} />
               <ThemedText style={styles.statusText}>{statusTone.label}</ThemedText>
             </View>
-            <ThemedText style={styles.kicker}>Voice-first translation studio</ThemedText>
-            <ThemedText style={styles.title}>Vaani Connect</ThemedText>
+            <ThemedText style={styles.kicker}>Fast mobile translation</ThemedText>
+            <ThemedText style={[styles.title, compactLayout && styles.titleCompact]}>Vaani Connect</ThemedText>
             <ThemedText style={styles.subtitle}>
-              Move between speech and text quickly, keep the language controls visible, and play translated audio
-              without losing your place.
+              Translate by text or voice, switch languages in one tap, and keep the screen easy to use on smaller
+              devices.
             </ThemedText>
 
             <View style={[styles.heroStats, compactLayout && styles.heroStatsCompact]}>
@@ -280,7 +312,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <View style={[styles.actionRow, compactLayout && styles.actionColumn]}>
+          <View style={styles.actionRow}>
             <ActionButton
               icon={isRecording ? 'stop-circle' : 'keyboard-voice'}
               title={isRecording ? 'Stop capture' : 'Record speech'}
@@ -289,14 +321,6 @@ export default function HomeScreen() {
               onPress={toggleRecording}
               disabled={activeRequest}
               loading={isTranslatingSpeech}
-            />
-            <ActionButton
-              icon="swap-horiz"
-              title="Swap languages"
-              subtitle="Flip source and destination instantly"
-              accent="#8fd3c7"
-              onPress={switchLanguages}
-              disabled={activeRequest}
             />
             <ActionButton
               icon="play-circle-filled"
@@ -312,23 +336,38 @@ export default function HomeScreen() {
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
               <ThemedText style={styles.panelTitle}>Language routing</ThemedText>
-              <ThemedText style={styles.panelMeta}>Backend source: {availableLanguages.length} supported options</ThemedText>
+              <ThemedText style={styles.panelMeta}>
+                Tap either field to open the full list. {availableLanguages.length} options available.
+              </ThemedText>
             </View>
 
-            <LanguagePicker
-              title="Input language"
-              caption="This drives text translation and speech recognition."
-              languages={availableLanguages}
-              selected={sourceLanguage}
-              onSelect={setSourceLanguage}
-            />
-            <LanguagePicker
-              title="Output language"
-              caption="The translated text and generated audio will follow this selection."
-              languages={availableLanguages}
-              selected={targetLanguage}
-              onSelect={setTargetLanguage}
-            />
+            <View style={[styles.languageRoute, compactLayout && styles.languageRouteCompact]}>
+              <LanguageSelector
+                title="Input language"
+                caption="Used for typing and speech recognition."
+                selected={sourceLanguage}
+                onPress={() => openLanguagePicker('source')}
+              />
+              <Pressable
+                style={[styles.swapButton, activeRequest && styles.swapButtonDisabled]}
+                onPress={switchLanguages}
+                disabled={activeRequest}>
+                <MaterialIcons name="swap-horiz" size={22} color={PANEL_ALT} />
+              </Pressable>
+              <LanguageSelector
+                title="Output language"
+                caption="Used for translated text and voice."
+                selected={targetLanguage}
+                onPress={() => openLanguagePicker('target')}
+              />
+            </View>
+
+            <View style={styles.routeSummary}>
+              <MaterialIcons name="route" size={16} color={ACCENT_STRONG} />
+              <ThemedText style={styles.routeSummaryText}>
+                Active route: {sourceLanguage} to {targetLanguage}
+              </ThemedText>
+            </View>
           </View>
 
           <View style={styles.editorGrid}>
@@ -340,6 +379,7 @@ export default function HomeScreen() {
               placeholder="Start with a phrase, question, or short instruction."
               onChangeText={setInputText}
               editable
+              compact={compactLayout}
               footer={`${inputText.trim().length} characters`}
             />
             <EditorCard
@@ -349,6 +389,7 @@ export default function HomeScreen() {
               value={outputText}
               placeholder="Nothing translated yet."
               editable={false}
+              compact={compactLayout}
               footer={latestAudioUrl ? 'Voice clip attached to latest response' : 'Audio will be generated by the backend'}
             />
           </View>
@@ -388,6 +429,65 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+
+      <Modal
+        visible={languagePickerField !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={closeLanguagePicker}>
+        <Pressable style={styles.modalBackdrop} onPress={closeLanguagePicker}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderCopy}>
+                <ThemedText style={styles.modalTitle}>{pickerTitle}</ThemedText>
+                <ThemedText style={styles.modalSubtitle}>Current selection: {pickerSelection}</ThemedText>
+              </View>
+              <Pressable style={styles.modalCloseButton} onPress={closeLanguagePicker}>
+                <MaterialIcons name="close" size={20} color={TEXT_PRIMARY} />
+              </Pressable>
+            </View>
+
+            <View style={styles.searchField}>
+              <MaterialIcons name="search" size={18} color={TEXT_MUTED} />
+              <TextInput
+                value={languageQuery}
+                onChangeText={setLanguageQuery}
+                placeholder="Search languages"
+                placeholderTextColor="rgba(174, 188, 183, 0.55)"
+                style={styles.searchInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <ScrollView style={styles.languageList} showsVerticalScrollIndicator={false}>
+              {filteredLanguages.length > 0 ? (
+                filteredLanguages.map((language) => (
+                  <Pressable
+                    key={language}
+                    style={[styles.languageRow, language === pickerSelection && styles.languageRowActive]}
+                    onPress={() => handleLanguageSelect(language)}>
+                    <ThemedText style={[styles.languageRowLabel, language === pickerSelection && styles.languageRowLabelActive]}>
+                      {language}
+                    </ThemedText>
+                    {language === pickerSelection ? (
+                      <MaterialIcons name="check-circle" size={20} color={ACCENT_STRONG} />
+                    ) : (
+                      <MaterialIcons name="chevron-right" size={20} color={TEXT_MUTED} />
+                    )}
+                  </Pressable>
+                ))
+              ) : (
+                <View style={styles.emptyState}>
+                  <ThemedText style={styles.emptyTitle}>No language found</ThemedText>
+                  <ThemedText style={styles.emptySubtitle}>Try a shorter search term.</ThemedText>
+                </View>
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -431,36 +531,28 @@ function ActionButton({
   );
 }
 
-function LanguagePicker({
+function LanguageSelector({
   title,
   caption,
-  languages,
   selected,
-  onSelect,
+  onPress,
 }: {
   title: string;
   caption: string;
-  languages: SupportedLanguage[];
   selected: SupportedLanguage;
-  onSelect: (language: SupportedLanguage) => void;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.languageBlock}>
+    <Pressable style={styles.languageCard} onPress={onPress}>
       <View style={styles.languageHeading}>
         <ThemedText style={styles.languageTitle}>{title}</ThemedText>
         <ThemedText style={styles.languageCaption}>{caption}</ThemedText>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {languages.map((language) => (
-          <Pressable
-            key={language}
-            onPress={() => onSelect(language)}
-            style={[styles.chip, selected === language && styles.chipActive]}>
-            <ThemedText style={[styles.chipLabel, selected === language && styles.chipLabelActive]}>{language}</ThemedText>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
+      <View style={styles.languageCardFooter}>
+        <ThemedText style={styles.languageValue}>{selected}</ThemedText>
+        <MaterialIcons name="expand-more" size={22} color={TEXT_PRIMARY} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -471,6 +563,7 @@ function EditorCard({
   value,
   placeholder,
   editable,
+  compact,
   onChangeText,
   footer,
 }: {
@@ -480,6 +573,7 @@ function EditorCard({
   value: string;
   placeholder: string;
   editable: boolean;
+  compact?: boolean;
   onChangeText?: (value: string) => void;
   footer: string;
 }) {
@@ -499,7 +593,7 @@ function EditorCard({
           multiline
           editable={editable}
           textAlignVertical="top"
-          style={styles.editorInput}
+          style={[styles.editorInput, compact && styles.editorInputCompact]}
         />
       </View>
       <ThemedText style={styles.editorFooter}>{footer}</ThemedText>
@@ -553,6 +647,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
   },
+  heroCardCompact: {
+    padding: 20,
+    borderRadius: 24,
+  },
   statusPill: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -591,6 +689,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontFamily: Fonts.serif,
   },
+  titleCompact: {
+    fontSize: 36,
+    lineHeight: 40,
+  },
   subtitle: {
     color: TEXT_MUTED,
     fontSize: 16,
@@ -623,12 +725,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  actionColumn: {
-    flexDirection: 'column',
-  },
   actionButton: {
     flex: 1,
-    minHeight: 120,
+    minHeight: 108,
     backgroundColor: PANEL_ALT,
     borderWidth: 1,
     borderColor: SURFACE_BORDER,
@@ -683,11 +782,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  languageBlock: {
-    gap: 10,
+  languageRoute: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  languageRouteCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  languageCard: {
+    flex: 1,
+    minHeight: 116,
+    justifyContent: 'space-between',
+    backgroundColor: PANEL_ALT,
+    borderWidth: 1,
+    borderColor: 'rgba(247, 242, 232, 0.08)',
+    borderRadius: 22,
+    padding: 16,
   },
   languageHeading: {
-    gap: 3,
+    gap: 4,
   },
   languageTitle: {
     color: TEXT_PRIMARY,
@@ -700,30 +815,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  chipRow: {
-    gap: 10,
-    paddingRight: 6,
+  languageCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  chip: {
-    borderWidth: 1,
-    borderColor: 'rgba(247, 242, 232, 0.12)',
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: PANEL_ALT,
-  },
-  chipActive: {
-    backgroundColor: ACCENT,
-    borderColor: ACCENT,
-  },
-  chipLabel: {
+  languageValue: {
     color: TEXT_PRIMARY,
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  chipLabelActive: {
-    color: PANEL_ALT,
+    fontSize: 18,
+    lineHeight: 24,
     fontWeight: '700',
+    fontFamily: Fonts.serif,
+  },
+  swapButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: ACCENT_STRONG,
+    alignSelf: 'center',
+  },
+  swapButtonDisabled: {
+    opacity: 0.45,
+  },
+  routeSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  routeSummaryText: {
+    color: TEXT_MUTED,
+    fontSize: 13,
+    lineHeight: 18,
   },
   editorGrid: {
     gap: 14,
@@ -776,6 +902,11 @@ const styles = StyleSheet.create({
     color: TEXT_PRIMARY,
     fontSize: 20,
     lineHeight: 29,
+  },
+  editorInputCompact: {
+    minHeight: 132,
+    fontSize: 18,
+    lineHeight: 26,
   },
   editorFooter: {
     color: TEXT_MUTED,
@@ -839,5 +970,120 @@ const styles = StyleSheet.create({
     color: TEXT_PRIMARY,
     fontSize: 14,
     lineHeight: 20,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(4, 10, 12, 0.62)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: SURFACE,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 16,
+    maxHeight: '82%',
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 54,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(247, 242, 232, 0.18)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  modalTitle: {
+    color: TEXT_PRIMARY,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '700',
+    fontFamily: Fonts.serif,
+  },
+  modalSubtitle: {
+    color: TEXT_MUTED,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PANEL_ALT,
+  },
+  searchField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: PANEL_ALT,
+    borderWidth: 1,
+    borderColor: 'rgba(247, 242, 232, 0.08)',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  searchInput: {
+    flex: 1,
+    color: TEXT_PRIMARY,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  languageList: {
+    minHeight: 220,
+  },
+  languageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: PANEL_ALT,
+    borderWidth: 1,
+    borderColor: 'rgba(247, 242, 232, 0.08)',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    marginBottom: 10,
+  },
+  languageRowActive: {
+    borderColor: ACCENT,
+    backgroundColor: 'rgba(242, 166, 90, 0.12)',
+  },
+  languageRowLabel: {
+    color: TEXT_PRIMARY,
+    fontSize: 16,
+    lineHeight: 22,
+    flex: 1,
+  },
+  languageRowLabelActive: {
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    gap: 6,
+  },
+  emptyTitle: {
+    color: TEXT_PRIMARY,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '600',
+  },
+  emptySubtitle: {
+    color: TEXT_MUTED,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

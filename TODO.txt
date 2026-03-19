@@ -1,0 +1,19 @@
+# Vaani Connect Backend TODO
+
+[ ] Expand translation language coverage for minor Indian dialects/languages
+[ ] Reduce end-to-end latency to support everyday real-time usage
+[ ] Confirm ASR language coverage and fallback behavior
+[ ] Add endpoint-level integration tests for /translate/text and /translate/speech
+[ ] Add startup health details (models loaded, device info)
+[ ] Add request/response logging with sensitive data redaction
+[ ] Review rate-limit defaults for production traffic
+[ ] Protect generated /audio files with API-key auth or signed short-lived URLs
+[ ] Add a real readiness endpoint that reflects model initialization/warmup failures
+[ ] Align TTS language coverage with the full supported translation language list
+[ ] Replace in-memory IP rate limiting with a production-ready shared limiter
+[ ] Add native speech recording support in Expo instead of web-only microphone capture
+[ ] Add in-app audio playback on mobile instead of opening translated audio URLs externally
+[ ] Decouple text translation from speech generation so audio is optional and on-demand
+[ ] Avoid duplicate backend translation calls when the user only wants audio playback
+[ ] Fix backend/bakcend path drift in docs, onboarding steps, and GitHub Actions
+[ ] Add frontend test coverage for the translation flow and error states
